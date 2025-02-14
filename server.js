@@ -5,6 +5,7 @@ const {
   getValidSessionCookie,
 } = require("./NextProject/fetchPlanning");
 const EMOJI = require("./emojis");
+const { syncWorkOrdersToCalendar } = require("./MicrosoftGraph/syncCalendar");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -135,6 +136,11 @@ async function fetchWorkOrdersScheduled() {
     if (!plannedWorkorders) {
       console.error(`${EMOJI.ERROR} Scheduled fetch: No work orders found`);
       return;
+    }
+
+    if (plannedWorkorders && plannedWorkorders.rows) {
+      // Sync with Outlook calendars
+      await syncWorkOrdersToCalendar(plannedWorkorders.rows);
     }
 
     lastFetchTime = Date.now();
