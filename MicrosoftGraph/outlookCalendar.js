@@ -1,7 +1,7 @@
 const { Client } = require("@microsoft/microsoft-graph-client");
 require("isomorphic-fetch");
 const { getAccessToken } = require("./auth");
-
+const EMOJI = require("../emojis");
 const NEXT_EVENT_PREFIX = "AO:";
 
 async function addEventToOutlook(workOrder, userEmail) {
@@ -10,11 +10,13 @@ async function addEventToOutlook(workOrder, userEmail) {
     authProvider: (done) => done(null, accessToken),
   });
 
-  const subject = `${NEXT_EVENT_PREFIX}${workOrder.name} `;
+  const subject = `${NEXT_EVENT_PREFIX} ${workOrder.name}`;
 
   // Check if event exists for this specific user
   if (await workOrderExists(client, subject, userEmail)) {
-    console.log(`Event already exists for ${userEmail}: ${subject}`);
+    console.log(
+      `${EMOJI.INFO} Event already exists for ${userEmail}: ${subject}`,
+    );
     return;
   }
 
@@ -23,18 +25,19 @@ async function addEventToOutlook(workOrder, userEmail) {
     start: { dateTime: workOrder.productionstart, timeZone: "UTC" },
     end: { dateTime: workOrder.productionend, timeZone: "UTC" },
     body: {
-      content: workOrder.description || "No description provided",
       contentType: "text",
+      content: workOrder.description,
     },
     location: { displayName: workOrder.customername },
   };
 
   try {
-    // Post to specific user's calendar
     await client.api(`/users/${userEmail}/calendar/events`).post(event);
-    console.log(`Added event to ${userEmail}'s calendar: ${subject}`);
+    console.log(
+      `${EMOJI.SUCCESS} Added event to ${userEmail}'s calendar: ${subject}`,
+    );
   } catch (error) {
-    console.error(`Error adding event for ${userEmail}:`, error);
+    console.error(`${EMOJI.ERROR} Error adding event for ${userEmail}:`, error);
     throw error;
   }
 }
@@ -49,7 +52,7 @@ async function workOrderExists(client, subject, userEmail) {
   } catch (error) {
     console.error(
       "Error checking event:",
-      error.response ? error.response.data : error.message
+      error.response ? error.response.data : error.message,
     );
     return false;
   }
@@ -69,7 +72,7 @@ async function deleteEventFromOutlook(userEmail) {
       .get();
 
     console.log(
-      `${EMOJI.INFO} Found ${events.value.length} events with prefix "${NEXT_EVENT_PREFIX}"`
+      `${EMOJI.INFO} Found ${events.value.length} events with prefix "${NEXT_EVENT_PREFIX}"`,
     );
     return events.value;
   } catch (error) {

@@ -5,13 +5,14 @@ const {
 } = require("./outlookCalendar");
 const USEREMAILMAP = require("./config");
 const EMOJI = require("../emojis");
+const { getWorkOrderDetails } = require("../NextProject/nextApi");
 
 // Keep track of previous work orders
 let previousWorkOrders = new Map();
 
 async function syncWorkOrdersToCalendar(workOrders) {
   console.log(
-    `${EMOJI.FETCH} Starting calendar sync for ${workOrders.length} work orders...`
+    `${EMOJI.FETCH} Starting calendar sync for ${workOrders.length} work orders...`,
   );
 
   // Create map of current work orders
@@ -21,7 +22,7 @@ async function syncWorkOrdersToCalendar(workOrders) {
   for (const [email, username] of Object.entries(USEREMAILMAP)) {
     try {
       console.log(
-        `${EMOJI.INFO} Checking for deleted events for ${username}...`
+        `${EMOJI.INFO} Checking for deleted events for ${username}...`,
       );
 
       // Get all Next Project events from Outlook
@@ -37,7 +38,7 @@ async function syncWorkOrdersToCalendar(workOrders) {
         // If work order no longer exists in current set, delete the event
         if (!currentWorkOrders.has(workOrderId)) {
           console.log(
-            `${EMOJI.WARN} Deleting removed work order event: ${event.subject}`
+            `${EMOJI.WARN} Deleting removed work order event: ${event.subject}`,
           );
           await client
             .api(`/users/${email}/calendar/events/${event.id}`)
@@ -47,7 +48,7 @@ async function syncWorkOrdersToCalendar(workOrders) {
     } catch (error) {
       console.error(
         `${EMOJI.ERROR} Error handling deletions for ${username}:`,
-        error
+        error,
       );
     }
   }
@@ -55,9 +56,26 @@ async function syncWorkOrdersToCalendar(workOrders) {
   // Handle additions/updates
   for (const workOrder of workOrders) {
     try {
+      // Fetch detailed work order information
+      const workOrderDetails = await getWorkOrderDetails(workOrder.WorkOrderId);
+
+      const description = `
+      ${EMOJI.PROJECT} Projekt: ${workOrderDetails.projectnumber} - ${workOrderDetails.projectname}${
+        workOrderDetails.description
+          ? `
+
+        ${EMOJI.DESCRIPTION} Beskrivning:
+        ${workOrderDetails.description}`
+          : ""
+      }
+        
+        ${EMOJI.CUSTOMER} Kund: ${workOrderDetails.customername}
+        ${EMOJI.STATUS} Status: ${workOrderDetails.statusname}
+        ${EMOJI.TIME} Tid: ${new Date(workOrder.ProductionStart).toLocaleDateString("sv-SE")} - ${new Date(workOrder.ProductionEnd).toLocaleDateString("sv-SE")}`.trim();
+
       const calendarEvent = {
         name: workOrder.Name,
-        description: `${EMOJI.INFO} Work Order ID: ${workOrder.WorkOrderId}\n${EMOJI.SERVER} Project ID: ${workOrder.ProjectId}`,
+        description: description,
         productionstart: workOrder.ProductionStart,
         productionend: workOrder.ProductionEnd,
         customername: workOrder.UserName,
@@ -66,19 +84,19 @@ async function syncWorkOrdersToCalendar(workOrders) {
       const userEmail = USEREMAILMAP[workOrder.UserName];
       if (!userEmail) {
         console.log(
-          `${EMOJI.WARN} Skipping sync - No email mapping for user: ${workOrder.UserName}`
+          `${EMOJI.WARN} Skipping sync - No email mapping for user: ${workOrder.UserName}`,
         );
         continue;
       }
 
       console.log(
-        `${EMOJI.CACHE} Syncing work order ${workOrder.Id} for ${workOrder.UserName}`
+        `${EMOJI.CACHE} Syncing work order ${workOrder.Id} for ${workOrder.UserName}`,
       );
       await addEventToOutlook(calendarEvent, userEmail);
     } catch (error) {
       console.error(
         `${EMOJI.ERROR} Failed to sync work order ${workOrder.Id}:`,
-        error
+        error,
       );
     }
   }

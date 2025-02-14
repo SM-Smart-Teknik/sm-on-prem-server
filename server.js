@@ -147,13 +147,13 @@ async function fetchWorkOrdersScheduled() {
     nextFetchTime = Date.now() + HOURLY_FETCH_INTERVAL;
 
     console.log(
-      `${EMOJI.SUCCESS} Scheduled fetch: Retrieved ${plannedWorkorders.length} work orders`
+      `${EMOJI.SUCCESS} Scheduled fetch: Retrieved ${plannedWorkorders.length} work orders`,
     );
     console.log(
-      `${EMOJI.INFO} Last fetch: ${new Date(lastFetchTime).toISOString()}`
+      `${EMOJI.INFO} Last fetch: ${new Date(lastFetchTime).toISOString()}`,
     );
     console.log(
-      `${EMOJI.INFO} Next fetch: ${new Date(nextFetchTime).toISOString()}`
+      `${EMOJI.INFO} Next fetch: ${new Date(nextFetchTime).toISOString()}`,
     );
   } catch (error) {
     console.error(`${EMOJI.ERROR} Scheduled fetch failed:`, error);
@@ -178,7 +178,7 @@ app.listen(port, () => {
     .catch((error) => {
       console.error(
         `${EMOJI.ERROR} Failed to establish initial session:`,
-        error
+        error,
       );
     });
 });

@@ -105,7 +105,7 @@ async function testCookie(sessionId) {
           Accept: "application/json",
           Cookie: `milltimesessionid=${sessionId}`,
         },
-      }
+      },
     );
     return response.ok;
   } catch (error) {
@@ -153,7 +153,7 @@ async function loginAndGetCookies() {
     await browser.close();
 
     const sessionCookie = cookies.find(
-      (cookie) => cookie.name === "milltimesessionid"
+      (cookie) => cookie.name === "milltimesessionid",
     );
 
     if (!sessionCookie) {
@@ -180,7 +180,7 @@ async function fetchPlanning(sessionId) {
   const endDateFormatted = endDate.toISOString().split("T")[0] + "T00:00:00";
 
   const filter = encodeURIComponent(
-    `[["ProductionEnd",">=","${startDate}"],["ProductionStart","<=","${endDateFormatted}"]]`
+    `[["ProductionEnd",">=","${startDate}"],["ProductionStart","<=","${endDateFormatted}"]]`,
   );
   const url = `https://next.nordsys.se/200202/cgi/me.cgi/data/store/UserWorkOrderScheduleStore?user=${userId}&type=json&filter=${filter}`;
 
