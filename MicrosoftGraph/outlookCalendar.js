@@ -2,7 +2,8 @@ const { Client } = require("@microsoft/microsoft-graph-client");
 require("isomorphic-fetch");
 const { getAccessToken } = require("./auth");
 const EMOJI = require("../emojis");
-const NEXT_EVENT_PREFIX = "AO:";
+const NEXT_EVENT_PREFIX = "AO";
+const { addLog } = require("../utils");
 
 async function addEventToOutlook(workOrder, userEmail) {
   const accessToken = await getAccessToken();
@@ -10,13 +11,11 @@ async function addEventToOutlook(workOrder, userEmail) {
     authProvider: (done) => done(null, accessToken),
   });
 
-  const subject = `${NEXT_EVENT_PREFIX} ${workOrder.name}`;
+  const subject = `${NEXT_EVENT_PREFIX}: ${workOrder.name}`;
 
   // Check if event exists for this specific user
   if (await workOrderExists(client, subject, userEmail)) {
-    console.log(
-      `${EMOJI.INFO} Event already exists for ${userEmail}: ${subject}`,
-    );
+    addLog(`${EMOJI.INFO} Event already exists for ${userEmail}: ${subject}`);
     return;
   }
 
@@ -33,15 +32,18 @@ async function addEventToOutlook(workOrder, userEmail) {
 
   try {
     await client.api(`/users/${userEmail}/calendar/events`).post(event);
-    console.log(
+    addLog(
       `${EMOJI.SUCCESS} Added event to ${userEmail}'s calendar: ${subject}`,
     );
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Error adding event for ${userEmail}:`, error);
+    addLog(
+      `${EMOJI.ERROR} Error adding event for ${userEmail}: ${error.message}`,
+    );
     throw error;
   }
 }
 
+// Update workOrderExists function
 async function workOrderExists(client, subject, userEmail) {
   try {
     const events = await client
@@ -50,33 +52,50 @@ async function workOrderExists(client, subject, userEmail) {
       .get();
     return events.value.length > 0;
   } catch (error) {
-    console.error(
-      "Error checking event:",
-      error.response ? error.response.data : error.message,
+    addLog(
+      `${EMOJI.ERROR} Error checking event: ${error.response ? error.response.data : error.message}`,
     );
     return false;
   }
 }
 
-async function deleteEventFromOutlook(userEmail) {
+// Replace remaining console logs in deleteEventFromOutlook function
+async function deleteEventFromOutlook(workOrderId, userEmail) {
   const accessToken = await getAccessToken();
   const client = Client.init({
     authProvider: (done) => done(null, accessToken),
   });
 
   try {
-    // Only fetch events that start with "AO "
     const events = await client
       .api(`/users/${userEmail}/calendar/events`)
-      .filter(`startsWith(subject, '${NEXT_EVENT_PREFIX}')`)
+      .select("id,subject")
       .get();
 
-    console.log(
-      `${EMOJI.INFO} Found ${events.value.length} events with prefix "${NEXT_EVENT_PREFIX}"`,
+    const matchingEvents = events.value.filter(
+      (event) =>
+        event.subject.startsWith(NEXT_EVENT_PREFIX) &&
+        event.subject.includes(workOrderId),
     );
-    return events.value;
+
+    if (matchingEvents.length > 0) {
+      addLog(
+        `${EMOJI.INFO} Found ${matchingEvents.length} events to delete for work order ${workOrderId}`,
+      );
+
+      for (const event of matchingEvents) {
+        await client
+          .api(`/users/${userEmail}/calendar/events/${event.id}`)
+          .delete();
+        addLog(`${EMOJI.SUCCESS} Deleted event: ${event.subject}`);
+      }
+      return true;
+    } else {
+      addLog(`${EMOJI.INFO} No events found for work order ${workOrderId}`);
+      return false;
+    }
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Error fetching events:`, error);
+    addLog(`${EMOJI.ERROR} Error deleting events: ${error.message}`);
     throw error;
   }
 }

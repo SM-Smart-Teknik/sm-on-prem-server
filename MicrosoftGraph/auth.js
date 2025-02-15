@@ -1,5 +1,7 @@
 const axios = require("axios");
-require("dotenv").config(); // Loads environment variables from .env file
+require("dotenv").config();
+const { addLog } = require("../utils");
+const EMOJI = require("../emojis");
 
 async function getAccessToken() {
   try {
@@ -15,9 +17,8 @@ async function getAccessToken() {
 
     return response.data.access_token;
   } catch (error) {
-    console.error(
-      "Error getting access token:",
-      error.response ? error.response.data : error.message,
+    addLog(
+      `${EMOJI.ERROR} Error getting access token: ${error.response ? error.response.data : error.message}`,
     );
     throw error;
   }

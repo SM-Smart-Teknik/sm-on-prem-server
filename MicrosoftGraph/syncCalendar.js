@@ -6,76 +6,70 @@ const {
 const USEREMAILMAP = require("./config");
 const EMOJI = require("../emojis");
 const { getWorkOrderDetails } = require("../NextProject/nextApi");
+const { addLog } = require("../utils");
 
 // Keep track of previous work orders
 let previousWorkOrders = new Map();
 
+// Modify the syncWorkOrdersToCalendar function
 async function syncWorkOrdersToCalendar(workOrders) {
-  console.log(
+  addLog(
     `${EMOJI.FETCH} Starting calendar sync for ${workOrders.length} work orders...`,
   );
 
-  // Create map of current work orders
-  const currentWorkOrders = new Map(workOrders.map((wo) => [wo.Id, wo]));
+  // Create set of current work order IDs
+  const currentWorkOrderIds = new Set(workOrders.map((wo) => wo.Id));
 
-  // Find deleted work orders
-  for (const [email, username] of Object.entries(USEREMAILMAP)) {
-    try {
-      console.log(
-        `${EMOJI.INFO} Checking for deleted events for ${username}...`,
-      );
+  // If we have previous work orders, check for deletions
+  if (previousWorkOrders.size > 0) {
+    addLog(`${EMOJI.INFO} Checking for deleted work orders...`);
 
-      // Get all Next Project events from Outlook
-      const outlookEvents = await deleteEventFromOutlook(email);
-
-      for (const event of outlookEvents) {
-        // Extract work order ID from event subject
-        const workOrderId = event.subject
-          .replace(NEXT_EVENT_PREFIX, "")
-          .split(":")[1]
-          .trim();
-
-        // If work order no longer exists in current set, delete the event
-        if (!currentWorkOrders.has(workOrderId)) {
+    for (const [prevId, prevWorkOrder] of previousWorkOrders) {
+      if (!currentWorkOrderIds.has(prevId)) {
+        const userEmail = USEREMAILMAP[prevWorkOrder.UserName];
+        if (userEmail) {
           console.log(
-            `${EMOJI.WARN} Deleting removed work order event: ${event.subject}`,
+            `${EMOJI.WARN} Work order ${prevId} no longer exists - deleting from calendar`,
           );
-          await client
-            .api(`/users/${email}/calendar/events/${event.id}`)
-            .delete();
+          try {
+            const deleted = await deleteEventFromOutlook(prevId, userEmail);
+            if (deleted) {
+              console.log(
+                `${EMOJI.SUCCESS} Successfully deleted events for work order ${prevId}`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              `${EMOJI.ERROR} Failed to delete work order ${prevId}:`,
+              error,
+            );
+          }
         }
       }
-    } catch (error) {
-      console.error(
-        `${EMOJI.ERROR} Error handling deletions for ${username}:`,
-        error,
-      );
     }
   }
 
-  // Handle additions/updates
+  // Handle additions and updates
   for (const workOrder of workOrders) {
     try {
-      // Fetch detailed work order information
       const workOrderDetails = await getWorkOrderDetails(workOrder.WorkOrderId);
 
-      const description = `
-      ${EMOJI.PROJECT} Projekt: ${workOrderDetails.projectnumber} - ${workOrderDetails.projectname}${
-        workOrderDetails.description
-          ? `
-
-        ${EMOJI.DESCRIPTION} Beskrivning:
-        ${workOrderDetails.description}`
-          : ""
-      }
-        
-        ${EMOJI.CUSTOMER} Kund: ${workOrderDetails.customername}
-        ${EMOJI.STATUS} Status: ${workOrderDetails.statusname}
-        ${EMOJI.TIME} Tid: ${new Date(workOrder.ProductionStart).toLocaleDateString("sv-SE")} - ${new Date(workOrder.ProductionEnd).toLocaleDateString("sv-SE")}`.trim();
-
+      // Create calendar event object
       const calendarEvent = {
-        name: workOrder.Name,
-        description: description,
+        name: `${workOrder.Id} ${workOrder.Name}`, // Include ID in name for better tracking
+        description: `
+${EMOJI.PROJECT} Projekt: ${workOrderDetails.projectnumber} - ${workOrderDetails.projectname}${
+          workOrderDetails.description
+            ? `
+
+${EMOJI.DESCRIPTION} Beskrivning:
+${workOrderDetails.description}`
+            : ""
+        }
+
+${EMOJI.CUSTOMER} Kund: ${workOrderDetails.customername}
+${EMOJI.STATUS} Status: ${workOrderDetails.statusname}
+${EMOJI.TIME} Tid: ${new Date(workOrder.ProductionStart).toLocaleDateString("sv-SE")} - ${new Date(workOrder.ProductionEnd).toLocaleDateString("sv-SE")}`.trim(),
         productionstart: workOrder.ProductionStart,
         productionend: workOrder.ProductionEnd,
         customername: workOrder.UserName,
@@ -83,28 +77,30 @@ async function syncWorkOrdersToCalendar(workOrders) {
 
       const userEmail = USEREMAILMAP[workOrder.UserName];
       if (!userEmail) {
-        console.log(
+        addLog(
           `${EMOJI.WARN} Skipping sync - No email mapping for user: ${workOrder.UserName}`,
         );
         continue;
       }
 
-      console.log(
-        `${EMOJI.CACHE} Syncing work order ${workOrder.Id} for ${workOrder.UserName}`,
-      );
+      // Delete existing event (if any) and create new one to handle updates
+      await deleteEventFromOutlook(workOrder.Id, userEmail);
       await addEventToOutlook(calendarEvent, userEmail);
+
+      addLog(
+        `${EMOJI.SUCCESS} Synced work order ${workOrder.Id} for ${workOrder.UserName}`,
+      );
     } catch (error) {
-      console.error(
-        `${EMOJI.ERROR} Failed to sync work order ${workOrder.Id}:`,
-        error,
+      addLog(
+        `${EMOJI.ERROR} Failed to sync work order ${workOrder.Id}: ${error.message}`,
       );
     }
   }
 
   // Update previous work orders map
-  previousWorkOrders = currentWorkOrders;
+  previousWorkOrders = new Map(workOrders.map((wo) => [wo.Id, wo]));
 
-  console.log(`${EMOJI.SUCCESS} Calendar sync completed`);
+  addLog(`${EMOJI.SUCCESS} Calendar sync completed`);
 }
 
 module.exports = { syncWorkOrdersToCalendar };

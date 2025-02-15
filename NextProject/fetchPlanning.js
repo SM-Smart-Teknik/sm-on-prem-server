@@ -8,6 +8,7 @@ const COOKIE_FILE = path.join(__dirname, ".cookie-cache.json");
 const COOKIE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 const EMOJI = require("../emojis");
 require("dotenv").config();
+const { addLog } = require("../utils");
 
 // Add email configuration
 const EMAIL_CONFIG = {
@@ -113,8 +114,9 @@ async function testCookie(sessionId) {
   }
 }
 
+// Replace console logs in loginAndGetCookies
 async function loginAndGetCookies() {
-  console.log(`${EMOJI.LOGIN} Starting login process...`);
+  addLog(`${EMOJI.LOGIN} Starting login process...`);
   const browser = await puppeteer.launch({ headless: false, slowMo: 100 }); // Open real Chrome, slow down actions
 
   const page = await browser.newPage();
@@ -137,7 +139,7 @@ async function loginAndGetCookies() {
   await page.click("#button-1020");
 
   try {
-    console.log(`${EMOJI.INFO} Waiting for login...`);
+    addLog(`${EMOJI.INFO} Waiting for login...`);
 
     // Wait for dashboard element
     await page.waitForSelector(".x-panel", {
@@ -148,7 +150,7 @@ async function loginAndGetCookies() {
     // Use setTimeout with Promise instead of waitForTimeout
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    console.log(`${EMOJI.SUCCESS} Login successful, getting cookies...`);
+    addLog(`${EMOJI.SUCCESS} Login successful, getting cookies...`);
     const cookies = await page.cookies();
     await browser.close();
 
@@ -160,10 +162,10 @@ async function loginAndGetCookies() {
       throw new Error("Session cookie not found! Check login process.");
     }
 
-    console.log(`${EMOJI.COOKIE} Got session cookie:`, sessionCookie.value);
+    addLog(`${EMOJI.COOKIE} Got session cookie: ${sessionCookie.value}`);
     return sessionCookie.value;
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Login process failed:`, error.message);
+    addLog(`${EMOJI.ERROR} Login process failed: ${error.message}`);
     await sendErrorEmail(error, "Login Process");
     await browser.close();
     throw new Error(`Login failed: ${error.message}`);

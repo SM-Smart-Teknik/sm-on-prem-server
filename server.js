@@ -6,7 +6,7 @@ const {
 } = require("./NextProject/fetchPlanning");
 const EMOJI = require("./emojis");
 const { syncWorkOrdersToCalendar } = require("./MicrosoftGraph/syncCalendar");
-
+const { addLog, logs, logEmitter } = require("./utils"); // Import both addLog and logs
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -32,6 +32,35 @@ app.get("/", (req, res) => {
             padding: 10px; 
             margin: 10px 0; 
             border-radius: 4px;
+          }
+          .logs {
+            background: #1e1e1e;
+            color: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+          }
+          .log-entry {
+            margin: 5px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+          }
+          .refresh-button {
+            margin: 10px 0;
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          }
+          .refresh-button:hover {
+            background: #0056b3;
           }
         </style>
       </head>
@@ -59,6 +88,41 @@ app.get("/", (req, res) => {
             ? new Date(nextFetchTime).toISOString()
             : "Not scheduled"
         }</p>
+        
+        <h2>Server Logs</h2>
+        <button class="refresh-button" onclick="window.location.reload()">Refresh Logs</button>
+        <div class="logs" id="logContainer">
+          ${
+            logs.entries.length > 0
+              ? logs.entries
+                  .map((log) => `<div class="log-entry">${log}</div>`)
+                  .join("")
+              : '<div class="log-entry">No logs yet...</div>'
+          }
+        </div>
+
+        <script>
+          const logContainer = document.getElementById('logContainer');
+          const evtSource = new EventSource('/events');
+          
+          evtSource.onmessage = function(event) {
+            const log = event.data;
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = log;
+            
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
+            
+            // Keep only the latest 100 entries in DOM
+            while (logContainer.children.length > 100) {
+              logContainer.removeChild(logContainer.lastChild);
+            }
+          };
+
+          evtSource.onerror = function() {
+            console.error('SSE connection failed, retrying...');
+          };
+        </script>
       </body>
     </html>
   `;
@@ -71,6 +135,23 @@ let globalSessionId = null;
 let lastFetchTime = null;
 let nextFetchTime = null;
 
+// Add this new endpoint before your other routes
+app.get("/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const listener = (log) => {
+    res.write(`data: ${JSON.stringify(log)}\n\n`);
+  };
+
+  logEmitter.on("newLog", listener);
+
+  req.on("close", () => {
+    logEmitter.removeListener("newLog", listener);
+  });
+});
+
 // Route to get planned work orders
 app.get("/api/plannedWorkOrders", async (req, res) => {
   try {
@@ -81,19 +162,22 @@ app.get("/api/plannedWorkOrders", async (req, res) => {
     const plannedWorkorders = await fetchPlanning(globalSessionId);
 
     if (!plannedWorkorders) {
-      console.error(`${EMOJI.ERROR} No work orders fetched`);
+      addLog(`${EMOJI.ERROR} No work orders fetched`);
       return res.status(404).json({ error: "No work orders found" });
     }
 
-    console.log(`${EMOJI.SUCCESS} Work orders fetched successfully`);
+    addLog(`${EMOJI.SUCCESS} Work orders fetched successfully`);
     res.json(plannedWorkorders);
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Error fetching work orders:`, error);
+    addLog(`${EMOJI.ERROR} Error fetching work orders: ${error.message}`);
     res.status(500).json({ error: "Failed to fetch work orders" });
-
-    // Reset session ID on error
     globalSessionId = null;
   }
+});
+
+// Update the logs endpoint
+app.get("/api/logs", (req, res) => {
+  res.json(logs.entries);
 });
 
 // Health check endpoint
@@ -112,11 +196,11 @@ app.get("/health", (req, res) => {
 const REFRESH_INTERVAL = 23 * 60 * 60 * 1000; // 23 hours in milliseconds
 setInterval(async () => {
   try {
-    console.log(`${EMOJI.INFO} Refreshing session...`);
+    addLog(`${EMOJI.INFO} Refreshing session...`);
     globalSessionId = await getValidSessionCookie();
-    console.log(`${EMOJI.SUCCESS} Session refreshed successfully`);
+    addLog(`${EMOJI.SUCCESS} Session refreshed successfully`);
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Failed to refresh session:`, error);
+    addLog(`${EMOJI.ERROR} Failed to refresh session: ${error.message}`);
   }
 }, REFRESH_INTERVAL);
 
@@ -125,7 +209,7 @@ const HOURLY_FETCH_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
 
 async function fetchWorkOrdersScheduled() {
   try {
-    console.log(`${EMOJI.INFO} Running scheduled work order fetch...`);
+    addLog(`${EMOJI.INFO} Running scheduled work order fetch...`);
 
     if (!globalSessionId) {
       globalSessionId = await getValidSessionCookie();
@@ -134,7 +218,7 @@ async function fetchWorkOrdersScheduled() {
     const plannedWorkorders = await fetchPlanning(globalSessionId);
 
     if (!plannedWorkorders) {
-      console.error(`${EMOJI.ERROR} Scheduled fetch: No work orders found`);
+      addLog(`${EMOJI.ERROR} Scheduled fetch: No work orders found`);
       return;
     }
 
@@ -146,39 +230,38 @@ async function fetchWorkOrdersScheduled() {
     lastFetchTime = Date.now();
     nextFetchTime = Date.now() + HOURLY_FETCH_INTERVAL;
 
-    console.log(
+    addLog(
       `${EMOJI.SUCCESS} Scheduled fetch: Retrieved ${plannedWorkorders.length} work orders`,
     );
-    console.log(
+    addLog(
       `${EMOJI.INFO} Last fetch: ${new Date(lastFetchTime).toISOString()}`,
     );
-    console.log(
+    addLog(
       `${EMOJI.INFO} Next fetch: ${new Date(nextFetchTime).toISOString()}`,
     );
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Scheduled fetch failed:`, error);
+    addLog(`${EMOJI.ERROR} Scheduled fetch failed: ${error.message}`);
     globalSessionId = null;
   }
 }
 
 setInterval(fetchWorkOrdersScheduled, HOURLY_FETCH_INTERVAL);
 
-// Start server
+// At the end of your file, update the server start section
 app.listen(port, () => {
-  console.log(`${EMOJI.SERVER} Server running at http://localhost:${port}`);
+  addLog(`${EMOJI.SERVER} Server started on port ${port}`);
+  addLog(`${EMOJI.INFO} Server URL: http://localhost:${port}`);
 
   // Initial session setup
   getValidSessionCookie()
     .then((sessionId) => {
       globalSessionId = sessionId;
-      console.log(`${EMOJI.SUCCESS} Initial session established`);
-      // Run initial fetch after session is established
+      addLog(`${EMOJI.SUCCESS} Initial session established`);
       fetchWorkOrdersScheduled();
     })
     .catch((error) => {
-      console.error(
-        `${EMOJI.ERROR} Failed to establish initial session:`,
-        error,
+      addLog(
+        `${EMOJI.ERROR} Failed to establish initial session: ${error.message}`,
       );
     });
 });

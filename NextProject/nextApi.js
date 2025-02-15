@@ -1,5 +1,6 @@
 const axios = require("axios");
 const EMOJI = require("../emojis");
+const { addLog } = require("../utils");
 
 async function getWorkOrderDetails(workOrderId) {
   try {
@@ -15,7 +16,9 @@ async function getWorkOrderDetails(workOrderId) {
 
     return response.data;
   } catch (error) {
-    console.error(`${EMOJI.ERROR} Failed to fetch work order details:`, error);
+    addLog(
+      `${EMOJI.ERROR} Failed to fetch work order details: ${error.message}`,
+    );
     throw error;
   }
 }
