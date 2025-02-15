@@ -59,49 +59,7 @@ async function workOrderExists(client, subject, userEmail) {
   }
 }
 
-// Replace remaining console logs in deleteEventFromOutlook function
-async function deleteEventFromOutlook(workOrderId, userEmail) {
-  const accessToken = await getAccessToken();
-  const client = Client.init({
-    authProvider: (done) => done(null, accessToken),
-  });
-
-  try {
-    const events = await client
-      .api(`/users/${userEmail}/calendar/events`)
-      .select("id,subject")
-      .get();
-
-    const matchingEvents = events.value.filter(
-      (event) =>
-        event.subject.startsWith(NEXT_EVENT_PREFIX) &&
-        event.subject.includes(workOrderId),
-    );
-
-    if (matchingEvents.length > 0) {
-      addLog(
-        `${EMOJI.INFO} Found ${matchingEvents.length} events to delete for work order ${workOrderId}`,
-      );
-
-      for (const event of matchingEvents) {
-        await client
-          .api(`/users/${userEmail}/calendar/events/${event.id}`)
-          .delete();
-        addLog(`${EMOJI.SUCCESS} Deleted event: ${event.subject}`);
-      }
-      return true;
-    } else {
-      addLog(`${EMOJI.INFO} No events found for work order ${workOrderId}`);
-      return false;
-    }
-  } catch (error) {
-    addLog(`${EMOJI.ERROR} Error deleting events: ${error.message}`);
-    throw error;
-  }
-}
-
 module.exports = {
   addEventToOutlook,
-  deleteEventFromOutlook,
   NEXT_EVENT_PREFIX,
 };

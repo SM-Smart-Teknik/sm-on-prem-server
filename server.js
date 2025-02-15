@@ -6,7 +6,7 @@ const {
 } = require("./NextProject/fetchPlanning");
 const EMOJI = require("./emojis");
 const { syncWorkOrdersToCalendar } = require("./MicrosoftGraph/syncCalendar");
-const { addLog, logs, logEmitter } = require("./utils"); // Import both addLog and logs
+const { addLog, logs, logEmitter, formatDateTime } = require("./utils"); // Import both addLog and logs
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -79,16 +79,7 @@ app.get("/", (req, res) => {
           <p>Method: GET</p>
         </div>
         <p>Status: Running</p>
-        <p>Server Time: ${new Date().toISOString()}</p>
-        <p>Last Fetch: ${
-          lastFetchTime ? new Date(lastFetchTime).toISOString() : "Never"
-        }</p>
-        <p>Next Fetch: ${
-          nextFetchTime
-            ? new Date(nextFetchTime).toISOString()
-            : "Not scheduled"
-        }</p>
-        
+        <p>Server Time: ${formatDateTime(new Date())}</p>       
         <h2>Server Logs</h2>
         <button class="refresh-button" onclick="window.location.reload()">Refresh Logs</button>
         <div class="logs" id="logContainer">
