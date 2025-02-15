@@ -2,53 +2,11 @@ const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 const fs = require("fs").promises;
 const path = require("path");
-const nodemailer = require("nodemailer");
-
 const COOKIE_FILE = path.join(__dirname, ".cookie-cache.json");
 const COOKIE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 const EMOJI = require("../emojis");
 require("dotenv").config();
 const { addLog } = require("../utils");
-
-// Add email configuration
-const EMAIL_CONFIG = {
-  from: process.env.EMAIL_FROM,
-  to: process.env.EMAIL_TO,
-  smtp: {
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  },
-};
-
-// Add these constants at the top of the file
-
-async function sendErrorEmail(error, context) {
-  const transporter = nodemailer.createTransport(EMAIL_CONFIG.smtp);
-
-  const emailContent = {
-    from: EMAIL_CONFIG.from,
-    to: EMAIL_CONFIG.to,
-    subject: `${EMOJI.ERROR} Error in SM On-Prem Server - ${context}`,
-    text: `
-${EMOJI.SERVER} Error occurred in: ${context}
-${EMOJI.INFO} Timestamp: ${new Date().toISOString()}
-${EMOJI.ERROR} Error message: ${error.message}
-${EMOJI.WARN} Stack trace: ${error.stack}
-    `,
-  };
-
-  try {
-    await transporter.sendMail(emailContent);
-    console.log(`${EMOJI.EMAIL} Error notification email sent`);
-  } catch (emailError) {
-    console.error(`${EMOJI.ERROR} Failed to send error email:`, emailError);
-  }
-}
 
 async function getCachedCookie() {
   try {
@@ -166,7 +124,6 @@ async function loginAndGetCookies() {
     return sessionCookie.value;
   } catch (error) {
     addLog(`${EMOJI.ERROR} Login process failed: ${error.message}`);
-    await sendErrorEmail(error, "Login Process");
     await browser.close();
     throw new Error(`Login failed: ${error.message}`);
   }
@@ -206,7 +163,6 @@ async function fetchPlanning(sessionId) {
     return data;
   } catch (error) {
     console.error(`${EMOJI.ERROR} Failed to fetch planned work orders:`, error);
-    await sendErrorEmail(error, "Fetch Planned Work Orders");
     return null;
   }
 }

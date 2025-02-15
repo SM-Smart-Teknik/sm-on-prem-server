@@ -59,7 +59,60 @@ async function workOrderExists(client, subject, userEmail) {
   }
 }
 
+async function checkAndUpdateEvent(workOrder, userEmail) {
+  const accessToken = await getAccessToken();
+  const client = Client.init({
+    authProvider: (done) => done(null, accessToken),
+  });
+
+  const subject = `${NEXT_EVENT_PREFIX}: ${workOrder.name}`;
+
+  try {
+    // Find existing event
+    const events = await client
+      .api(`/users/${userEmail}/calendar/events`)
+      .filter(`subject eq '${subject}'`)
+      .get();
+
+    if (events.value.length > 0) {
+      const existingEvent = events.value[0];
+      const needsUpdate =
+        new Date(existingEvent.start.dateTime).getTime() !==
+          new Date(workOrder.productionstart).getTime() ||
+        new Date(existingEvent.end.dateTime).getTime() !==
+          new Date(workOrder.productionend).getTime() ||
+        existingEvent.body.content !== workOrder.description ||
+        existingEvent.location.displayName !== workOrder.customername;
+
+      if (needsUpdate) {
+        // Update the event
+        const updatedEvent = {
+          subject,
+          start: { dateTime: workOrder.productionstart, timeZone: "UTC" },
+          end: { dateTime: workOrder.productionend, timeZone: "UTC" },
+          body: {
+            contentType: "text",
+            content: workOrder.description,
+          },
+          location: { displayName: workOrder.customername },
+        };
+
+        await client
+          .api(`/users/${userEmail}/calendar/events/${existingEvent.id}`)
+          .update(updatedEvent);
+
+        return true; // Event was updated
+      }
+    }
+    return false; // No event found or no update needed
+  } catch (error) {
+    addLog(`${EMOJI.ERROR} Error checking/updating event: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   addEventToOutlook,
+  checkAndUpdateEvent,
   NEXT_EVENT_PREFIX,
 };

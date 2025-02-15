@@ -1,4 +1,5 @@
-const { addEventToOutlook } = require("./outlookCalendar");
+// Add new import for checkAndUpdateEvent
+const { addEventToOutlook, checkAndUpdateEvent } = require("./outlookCalendar");
 const USEREMAILMAP = require("./config");
 const EMOJI = require("../emojis");
 const { getWorkOrderDetails } = require("../NextProject/nextApi");
@@ -17,17 +18,22 @@ async function syncWorkOrdersToCalendar(workOrders) {
   for (const workOrder of workOrders) {
     try {
       const workOrderDetails = await getWorkOrderDetails(workOrder.WorkOrderId);
+      const userEmail = USEREMAILMAP[workOrder.UserName];
+
+      if (!userEmail) {
+        addLog(
+          `${EMOJI.WARN} Skipping sync - No email mapping for user: ${workOrder.UserName}`,
+        );
+        continue;
+      }
 
       // Create calendar event object
       const calendarEvent = {
-        name: `${workOrder.Id} ${workOrder.Name}`, // Include ID in name for better tracking
+        name: `${workOrder.Name} ${workOrder.Id}`,
         description: `
         ${EMOJI.PROJECT} Projekt: ${workOrderDetails.projectnumber} - ${workOrderDetails.projectname}${
           workOrderDetails.description
-            ? `
-
-        ${EMOJI.DESCRIPTION} Beskrivning:
-        ${workOrderDetails.description}`
+            ? `\n\n        ${EMOJI.DESCRIPTION} Beskrivning:\n        ${workOrderDetails.description}`
             : ""
         }
 
@@ -39,19 +45,20 @@ async function syncWorkOrdersToCalendar(workOrders) {
         customername: workOrder.UserName,
       };
 
-      const userEmail = USEREMAILMAP[workOrder.UserName];
-      if (!userEmail) {
-        addLog(
-          `${EMOJI.WARN} Skipping sync - No email mapping for user: ${workOrder.UserName}`,
-        );
-        continue;
-      }
+      // Try to update existing event or create new one
+      const wasUpdated = await checkAndUpdateEvent(calendarEvent, userEmail);
 
-      // Create new calendar event
-      await addEventToOutlook(calendarEvent, userEmail);
-      addLog(
-        `${EMOJI.SUCCESS} Synced work order ${workOrder.Id} for ${workOrder.UserName}`,
-      );
+      if (wasUpdated) {
+        addLog(
+          `${EMOJI.UPDATE} Updated existing event for work order ${workOrder.Id} (${workOrder.UserName})`,
+        );
+      } else {
+        // If no event exists or no update was needed, create new event
+        await addEventToOutlook(calendarEvent, userEmail);
+        addLog(
+          `${EMOJI.SUCCESS} Created new event for work order ${workOrder.Id} (${workOrder.UserName})`,
+        );
+      }
     } catch (error) {
       addLog(
         `${EMOJI.ERROR} Failed to sync work order ${workOrder.Id}: ${error.message}`,

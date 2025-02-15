@@ -82,6 +82,7 @@ app.get("/", (req, res) => {
         <p>Server Time: ${formatDateTime(new Date())}</p>       
         <h2>Server Logs</h2>
         <button class="refresh-button" onclick="window.location.reload()">Refresh Logs</button>
+        <button class="refresh-button" onclick="triggerManualSync()">Manual Sync</button>
         <div class="logs" id="logContainer">
           ${
             logs.entries.length > 0
@@ -113,6 +114,17 @@ app.get("/", (req, res) => {
           evtSource.onerror = function() {
             console.error('SSE connection failed, retrying...');
           };
+
+          function triggerManualSync() {
+            fetch('/api/manualSync')
+              .then((res) => res.json())
+              .then((data) => {
+                console.log('Manual sync response:', data);
+              })
+              .catch((err) => {
+                console.error('Manual sync failed:', err);
+              });
+          }
         </script>
       </body>
     </html>
@@ -183,6 +195,17 @@ app.get("/health", (req, res) => {
   });
 });
 
+app.get("/api/manualSync", async (req, res) => {
+  try {
+    await fetchAndSyncWorkOrdersScheduled();
+    addLog(`${EMOJI.INFO} Manual sync successful`);
+    res.json({ message: "Manual sync completed" });
+  } catch (error) {
+    addLog(`${EMOJI.ERROR} Manual sync failed: ${error.message}`);
+    res.status(500).json({ error: "Manual sync failed" });
+  }
+});
+
 // Session refresh every 23 hours
 const REFRESH_INTERVAL = 23 * 60 * 60 * 1000; // 23 hours in milliseconds
 setInterval(async () => {
@@ -198,7 +221,7 @@ setInterval(async () => {
 // Hourly work order fetch
 const HOURLY_FETCH_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
 
-async function fetchWorkOrdersScheduled() {
+async function fetchAndSyncWorkOrdersScheduled() {
   try {
     addLog(`${EMOJI.INFO} Running scheduled work order fetch...`);
 
@@ -236,7 +259,7 @@ async function fetchWorkOrdersScheduled() {
   }
 }
 
-setInterval(fetchWorkOrdersScheduled, HOURLY_FETCH_INTERVAL);
+setInterval(fetchAndSyncWorkOrdersScheduled, HOURLY_FETCH_INTERVAL);
 
 // At the end of your file, update the server start section
 app.listen(port, () => {
@@ -248,7 +271,7 @@ app.listen(port, () => {
     .then((sessionId) => {
       globalSessionId = sessionId;
       addLog(`${EMOJI.SUCCESS} Initial session established`);
-      fetchWorkOrdersScheduled();
+      fetchAndSyncWorkOrdersScheduled();
     })
     .catch((error) => {
       addLog(
