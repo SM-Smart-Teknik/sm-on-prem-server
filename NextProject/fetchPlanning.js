@@ -75,7 +75,7 @@ async function testCookie(sessionId) {
 // Replace console logs in loginAndGetCookies
 async function loginAndGetCookies() {
   addLog(`${EMOJI.LOGIN} Starting login process...`);
-  const browser = await puppeteer.launch({ headless: false, slowMo: 100 }); // Open real Chrome, slow down actions
+  const browser = await puppeteer.launch({ headless: true });
 
   const page = await browser.newPage();
 

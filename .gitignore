@@ -1,3 +1,3 @@
 node_modules/
 .env
-.cookie-cache.json
+NextProject/.cookie-cache.json
