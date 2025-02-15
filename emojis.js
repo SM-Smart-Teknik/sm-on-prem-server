@@ -15,6 +15,8 @@ const EMOJI = {
   STATUS: "🔔",
   DESCRIPTION: "📝",
   TIME: "⏰",
+  UPDATE: "🔄",
+  DELETE: "🗑️", // Added delete emoji
 };
 
 module.exports = EMOJI;

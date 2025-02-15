@@ -21,8 +21,14 @@ async function addEventToOutlook(workOrder, userEmail) {
 
   const event = {
     subject,
-    start: { dateTime: workOrder.productionstart, timeZone: "UTC" },
-    end: { dateTime: workOrder.productionend, timeZone: "UTC" },
+    start: {
+      dateTime: new Date(workOrder.productionstart).toISOString(),
+      timeZone: "Europe/Stockholm", // Use local timezone instead of UTC
+    },
+    end: {
+      dateTime: new Date(workOrder.productionend).toISOString(),
+      timeZone: "Europe/Stockholm", // Use local timezone instead of UTC
+    },
     body: {
       contentType: "text",
       content: workOrder.description,
@@ -88,8 +94,14 @@ async function checkAndUpdateEvent(workOrder, userEmail) {
         // Update the event
         const updatedEvent = {
           subject,
-          start: { dateTime: workOrder.productionstart, timeZone: "UTC" },
-          end: { dateTime: workOrder.productionend, timeZone: "UTC" },
+          start: {
+            dateTime: new Date(workOrder.productionstart).toISOString(),
+            timeZone: "Europe/Stockholm",
+          },
+          end: {
+            dateTime: new Date(workOrder.productionend).toISOString(),
+            timeZone: "Europe/Stockholm",
+          },
           body: {
             contentType: "text",
             content: workOrder.description,
@@ -111,8 +123,57 @@ async function checkAndUpdateEvent(workOrder, userEmail) {
   }
 }
 
+// Add this new function to outlookCalendar.js
+async function removeDeletedWorkOrders(workOrders, userEmail) {
+  const accessToken = await getAccessToken();
+  const client = Client.init({
+    authProvider: (done) => done(null, accessToken),
+  });
+
+  try {
+    // Get all future events with our prefix
+    const now = new Date().toISOString();
+    const events = await client
+      .api(`/users/${userEmail}/calendar/events`)
+      .filter(
+        `startsWith(subject, '${NEXT_EVENT_PREFIX}:') and start/dateTime gt '${now}'`,
+      )
+      .get();
+
+    for (const event of events.value) {
+      // Extract work order ID from event subject
+      const match = event.subject.match(
+        new RegExp(`${NEXT_EVENT_PREFIX}: .* (\\d+)$`),
+      );
+      if (!match) continue;
+
+      const eventWorkOrderId = match[1];
+
+      // Check if this work order still exists in the current set
+      const workOrderExists = workOrders.some(
+        (wo) => wo.Id.toString() === eventWorkOrderId,
+      );
+
+      if (!workOrderExists) {
+        await client
+          .api(`/users/${userEmail}/calendar/events/${event.id}`)
+          .delete();
+
+        addLog(
+          `${EMOJI.DELETE} Removed obsolete future calendar event for work order ${eventWorkOrderId}`,
+        );
+      }
+    }
+  } catch (error) {
+    addLog(`${EMOJI.ERROR} Error removing obsolete events: ${error.message}`);
+    throw error;
+  }
+}
+
+// Add to exports
 module.exports = {
   addEventToOutlook,
   checkAndUpdateEvent,
+  removeDeletedWorkOrders,
   NEXT_EVENT_PREFIX,
 };
