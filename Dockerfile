@@ -1,41 +1,65 @@
-FROM node:18-slim
+FROM node:18
 
-# Create app directory
-WORKDIR /usr/src/app
-
-# Install dependencies
+# Install Chrome dependencies and Chrome
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
-    && apt-get update && apt-get install -y \
-    google-chrome-stable \
-    fonts-ipafont-gothic \
-    fonts-wqy-zenhei \
-    fonts-thai-tlwg \
-    fonts-kacst \
-    fonts-freefont-ttf \
+    ca-certificates \
     fonts-liberation \
-    fonts-noto \
-    --no-install-recommends \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    --no-install-recommends
+
+# Install Chrome
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
-COPY package*.json ./
+WORKDIR /usr/src/app
 
-# Install dependencies
+# Install app dependencies first (caching)
+COPY package*.json ./
 RUN npm install
 
-# Copy app source
+# Bundle app source
 COPY . .
 
-# Set Puppeteer to use Chrome instead of downloading Chromium
+# Create directories and set permissions
+RUN mkdir -p /home/pptruser/.cache/puppeteer \
+    && groupadd -r pptruser \
+    && useradd -r -g pptruser -G audio,video pptruser \
+    && mkdir -p /home/pptruser/Downloads \
+    && mkdir -p /usr/src/app/NextProject \
+    && touch /usr/src/app/NextProject/.cookie-cache.json \
+    && chown -R pptruser:pptruser /home/pptruser \
+    && chown -R pptruser:pptruser /usr/src/app \
+    && chmod -R 777 /home/pptruser/.cache
+
+# Set Puppeteer configurations
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+ENV PUPPETEER_NO_SANDBOX=true
+ENV PUPPETEER_CACHE_DIR=/home/pptruser/.cache/puppeteer
 
-# Expose port
-EXPOSE 3000
+# Run as non-root user
+USER pptruser
 
-# Start the app
-CMD [ "node", "server.js" ]
+# Start the application
+CMD ["node", "server.js"]

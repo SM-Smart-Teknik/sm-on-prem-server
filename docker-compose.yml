@@ -6,7 +6,12 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
     volumes:
-      - ./.env:/usr/src/app/.env
+      - ./.env:/usr/src/app/.env:ro
       - ./NextProject/.cookie-cache.json:/usr/src/app/NextProject/.cookie-cache.json
     restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp=unconfined

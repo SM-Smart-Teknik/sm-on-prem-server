@@ -4,7 +4,7 @@ An automated server application that synchronizes work orders from Next Project 
 
 ## Features ✨
 
-- Real-time work order synchronization
+- Real-time work order synchronization with Next Project to Outlook
 - Automated calendar event management
 - User-specific calendar assignments
 - Web-based monitoring dashboard
@@ -15,7 +15,7 @@ An automated server application that synchronizes work orders from Next Project 
 ## Prerequisites 📋
 
 - Docker Desktop
-- Microsoft Azure account with appropriate permissions
+- Microsoft Azure credentials to API with appropiate permissions
 - Next Project account credentials
 
 ## Environment Variables 🔐

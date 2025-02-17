@@ -96,7 +96,7 @@ app.get("/", (req, res) => {
         <script>
           const logContainer = document.getElementById('logContainer');
           const evtSource = new EventSource('/events');
-          
+           
           evtSource.onmessage = function(event) {
             const log = event.data;
             const logEntry = document.createElement('div');
