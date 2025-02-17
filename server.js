@@ -8,7 +8,7 @@ const EMOJI = require("./emojis");
 const { syncWorkOrdersToCalendar } = require("./MicrosoftGraph/syncCalendar");
 const { addLog, logs, logEmitter, formatDateTime } = require("./utils"); // Import both addLog and logs
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
@@ -218,8 +218,8 @@ setInterval(async () => {
   }
 }, REFRESH_INTERVAL);
 
-// Hourly work order fetch
-const HOURLY_FETCH_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
+// Replace the hourly fetch interval with 10 minutes
+const HOURLY_FETCH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds (changed from 60 * 60 * 1000)
 
 async function fetchAndSyncWorkOrdersScheduled() {
   try {
@@ -259,6 +259,7 @@ async function fetchAndSyncWorkOrdersScheduled() {
   }
 }
 
+// The interval setting remains the same, but will now run every 10 minutes
 setInterval(fetchAndSyncWorkOrdersScheduled, HOURLY_FETCH_INTERVAL);
 
 // At the end of your file, update the server start section
