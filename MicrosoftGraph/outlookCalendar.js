@@ -34,6 +34,7 @@ async function addEventToOutlook(workOrder, userEmail) {
       content: workOrder.description,
     },
     location: { displayName: workOrder.customername },
+    showAs: "free", // Add this line
   };
 
   try {
@@ -107,6 +108,7 @@ async function checkAndUpdateEvent(workOrder, userEmail) {
             content: workOrder.description,
           },
           location: { displayName: workOrder.customername },
+          showAs: "free",
         };
 
         await client
